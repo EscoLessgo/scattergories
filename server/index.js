@@ -180,6 +180,18 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('get_rooms', () => {
+        const publicRooms = Array.from(rooms.values())
+            .filter(r => r.isPublic && r.state === 'LOBBY')
+            .map(r => ({
+                id: r.id,
+                players: r.players.length,
+                maxPlayers: r.maxPlayers,
+                host: r.players.find(p => p.isHost)?.name || 'Unknown'
+            }));
+        socket.emit('rooms_list', publicRooms);
+    });
+
     socket.on('start_game', ({ roomId }) => {
         const room = rooms.get(roomId);
         if (!room) return;

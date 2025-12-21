@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { LuPlay, LuPlus, LuUsers, LuUser } from 'react-icons/lu';
+import { LuPlay, LuPlus, LuUsers, LuUser, LuX } from 'react-icons/lu';
 import { socket } from '../socket';
 import { discordSdk, setupDiscordSdk } from '../discord';
 
@@ -10,6 +10,8 @@ export default function Home() {
     const [name, setName] = useState(localStorage.getItem('stopots_name') || '');
     const [avatar, setAvatar] = useState(parseInt(localStorage.getItem('stopots_avatar')) || 0);
     const [isDiscord, setIsDiscord] = useState(false);
+    const [showRoomBrowser, setShowRoomBrowser] = useState(false);
+    const [roomList, setRoomList] = useState([]);
 
     useEffect(() => {
         async function init() {
@@ -25,12 +27,22 @@ export default function Home() {
                 }
             }
 
-            socket.connect();
+            if (!socket.connected) socket.connect();
+
             function onJoined({ roomId }) {
                 navigate(`/room/${roomId}`);
             }
+            function onRoomsList(rooms) {
+                setRoomList(rooms);
+            }
+
             socket.on('joined_room', onJoined);
-            return () => socket.off('joined_room', onJoined);
+            socket.on('rooms_list', onRoomsList);
+
+            return () => {
+                socket.off('joined_room', onJoined);
+                socket.off('rooms_list', onRoomsList);
+            };
         }
         init();
     }, [navigate]);
@@ -146,7 +158,10 @@ export default function Home() {
                         text="ROOMS"
                         sub="Browse public rooms"
                         color="bg-gradient-to-r from-[#4361ee] to-[#3a0ca3]"
-                        onClick={() => { }}
+                        onClick={() => {
+                            setShowRoomBrowser(true);
+                            socket.emit('get_rooms');
+                        }}
                         delay={0.3}
                     />
                 </div>
@@ -157,6 +172,66 @@ export default function Home() {
                     <a href="/privacy" className="hover:text-white/60 transition-colors">Privacy Policy</a>
                 </div>
             </motion.div>
+
+            {/* Room Browser Modal */}
+            <AnimatePresence>
+                {showRoomBrowser && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.9 }}
+                            className="bg-[#130f1e] border border-white/10 w-full max-w-lg rounded-2xl p-6 shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-bold text-white">Public Rooms</h2>
+                                <button
+                                    onClick={() => setShowRoomBrowser(false)}
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                >
+                                    <LuX size={24} />
+                                </button>
+                            </div>
+
+                            <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                {roomList.length === 0 ? (
+                                    <div className="text-center py-12 text-white/30 italic">
+                                        No active rooms found. Create one!
+                                    </div>
+                                ) : (
+                                    roomList.map(room => (
+                                        <div key={room.id} className="bg-white/5 p-4 rounded-xl flex items-center justify-between border border-white/5 hover:border-[var(--accent-blue)] transition-colors">
+                                            <div>
+                                                <div className="font-bold text-lg">{room.host}'s Room</div>
+                                                <div className="text-xs text-white/40">ID: {room.id}</div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-sm font-mono text-white/60">
+                                                    {room.players}/{room.maxPlayers}
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        if (!saveProfile()) return alert('Please enter a name!');
+                                                        socket.emit('join_room', { roomId: room.id, user: { name, avatar } });
+                                                    }}
+                                                    className="px-4 py-2 bg-[var(--accent-blue)] text-[#130f1e] font-bold rounded-lg hover:brightness-110 transition-all"
+                                                >
+                                                    JOIN
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
