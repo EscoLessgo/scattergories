@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Room from './pages/Room';
 import Terms from './pages/Terms';
@@ -7,7 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 
 function App() {
     return (
-        <BrowserRouter>
+        <HashRouter>
             <AnimatePresence mode="wait">
                 <Routes>
                     <Route path="/" element={<Home />} />
@@ -16,7 +16,7 @@ function App() {
                     <Route path="/privacy" element={<Privacy />} />
                 </Routes>
             </AnimatePresence>
-        </BrowserRouter>
+        </HashRouter>
     );
 }
 
