@@ -2,15 +2,30 @@ import { DiscordSDK } from "@discord/embedded-app-sdk";
 
 const isDiscord = typeof window !== 'undefined' && window.location.search.includes('frame_id');
 
-export const discordSdk = isDiscord
-    ? new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID)
-    : {
+let discordSdk;
+
+try {
+    if (isDiscord) {
+        const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+        if (!clientId) {
+            throw new Error("VITE_DISCORD_CLIENT_ID is missing from environment variables");
+        }
+        discordSdk = new DiscordSDK(clientId);
+    } else {
+        throw new Error("Not in Discord IFrame");
+    }
+} catch (e) {
+    console.warn("Discord SDK initialization skipped or failed:", e);
+    discordSdk = {
         ready: () => Promise.resolve(),
         commands: {
             authorize: () => Promise.resolve({ code: 'mock_code' }),
-            authenticate: () => Promise.resolve({ user: { username: 'LocalUser' } })
+            authenticate: () => Promise.resolve({ user: { username: 'LocalUser', global_name: 'Local User' } })
         }
     };
+}
+
+export { discordSdk };
 
 export async function setupDiscordSdk() {
     await discordSdk.ready();
