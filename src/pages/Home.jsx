@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { LuPlay, LuPlus, LuUsers, LuUser } from 'react-icons/lu';
 import { socket } from '../socket';
-import { discordSdk } from '../discord';
+import { discordSdk, setupDiscordSdk } from '../discord';
 
 export default function Home() {
     const navigate = useNavigate();
@@ -16,8 +16,10 @@ export default function Home() {
             if (location.search.includes('frame_id')) { // Basic check for Discord
                 try {
                     setIsDiscord(true);
-                    // In a real app we'd fully auth here
-                    // For now, we just acknowledge the environment
+                    const auth = await setupDiscordSdk();
+                    if (auth.user) {
+                        setName(auth.user.global_name || auth.user.username);
+                    }
                 } catch (e) {
                     console.error("Discord SDK Error", e);
                 }
