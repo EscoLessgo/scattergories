@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 // Diagnostic/Health Check
 app.get('/health', (req, res) => res.send('OK'));
 
-app.use(express.static(distPath));
+// app.use(express.static(distPath)); // DISABLED FOR DEBUGGING - Force all through manual handler
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
