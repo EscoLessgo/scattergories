@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import fs from 'fs';
 
 
 const app = express();
@@ -69,23 +70,42 @@ app.post('/api/token', async (req, res) => {
 
 // Catch-all handler for any request that doesn't match the above
 // Using 'use' to match POST/GET/etc ensuring we never fallback to default 404
+// Request Logger
+app.use((req, res, next) => {
+    console.log(`[${req.method}] ${req.url}`);
+    next();
+});
+
+// Catch-all handler for any request that doesn't match the above
+// Using 'use' to match POST/GET/etc ensuring we never fallback to default 404
 app.use('*', (req, res) => {
     const indexPath = path.join(distPath, 'index.html');
 
-    // Debug logging
-    console.log(`[REQUEST] ${req.method} ${req.originalUrl} -> Serving ${indexPath}`);
-
+    // Attempt to serve file
     res.sendFile(indexPath, (err) => {
         if (err) {
-            console.error(`[ERROR] File not found or send failed: ${indexPath}`, err);
-            // Only send error response if we haven't already replied
+            console.error(`[ERROR] Sendfile failed for ${indexPath}`, err);
+
+            // Check if file even exists by listing directory
+            try {
+                const files = fs.readdirSync(distPath);
+                console.log('Contents of dist:', files);
+            } catch (e) {
+                console.log('Could not list dist:', e.message);
+            }
+
             if (!res.headersSent) {
-                res.status(500).send(`
-                    <h1>Server Error</h1>
-                    <p>Could not find or serve <code>dist/index.html</code></p>
-                    <p>Current Directory: ${__dirname}</p>
-                    <p>Target Path: ${indexPath}</p>
-                    <p>Error Detail: ${err.message}</p>
+                // FALLBACK: Send hardcoded HTML so we never show a white screen
+                res.status(200).send(`
+                    <!DOCTYPE html>
+                    <html>
+                    <body style="background: #330000; color: white; padding: 20px; font-family: monospace;">
+                        <h1>SERVER FALLBACK</h1>
+                        <p>The server could not access the static assets.</p>
+                        <p>Error: ${err.message}</p>
+                        <p>Path: ${indexPath}</p>
+                    </body>
+                    </html>
                 `);
             }
         }
