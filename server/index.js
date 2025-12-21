@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import fs from 'fs';
+
 
 const app = express();
 app.use(cors());
@@ -36,17 +36,21 @@ app.use('*', (req, res) => {
     // Debug logging
     console.log(`[REQUEST] ${req.method} ${req.originalUrl} -> Serving ${indexPath}`);
 
-    if (!fs.existsSync(indexPath)) {
-        console.error(`[ERROR] File not found: ${indexPath}`);
-        return res.status(500).send(`
-            <h1>Server Error</h1>
-            <p>Could not find <code>dist/index.html</code></p>
-            <p>Current Directory: ${__dirname}</p>
-            <p>Target Path: ${indexPath}</p>
-        `);
-    }
-
-    res.sendFile(indexPath);
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error(`[ERROR] File not found or send failed: ${indexPath}`, err);
+            // Only send error response if we haven't already replied
+            if (!res.headersSent) {
+                res.status(500).send(`
+                    <h1>Server Error</h1>
+                    <p>Could not find or serve <code>dist/index.html</code></p>
+                    <p>Current Directory: ${__dirname}</p>
+                    <p>Target Path: ${indexPath}</p>
+                    <p>Error Detail: ${err.message}</p>
+                `);
+            }
+        }
+    });
 });
 
 io.on('connection', (socket) => {
