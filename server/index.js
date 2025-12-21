@@ -28,6 +28,45 @@ app.get('/health', (req, res) => res.send('OK'));
 
 app.use(express.static(distPath));
 
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+// Game State Storage (Memory)
+const rooms = new Map();
+
+// Helper to generate room ID
+const generateRoomId = () => Math.random().toString(36).substring(2, 7);
+
+app.use(express.json());
+
+app.post('/api/token', async (req, res) => {
+    try {
+        const response = await fetch(`https://discord.com/api/oauth2/token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                client_id: process.env.VITE_DISCORD_CLIENT_ID,
+                client_secret: process.env.DISCORD_CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code: req.body.code,
+            }),
+        });
+
+        const { access_token } = await response.json();
+        res.send({ access_token });
+    } catch (error) {
+        console.error('Token invalid', error);
+        res.status(500).send({ error: 'Token invalid' });
+    }
+});
+
 // Catch-all handler for any request that doesn't match the above
 // Using 'use' to match POST/GET/etc ensuring we never fallback to default 404
 app.use('*', (req, res) => {
