@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Room from './pages/Room';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import { AnimatePresence } from 'framer-motion';
 
 function App() {
@@ -10,6 +12,8 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/room/:roomId" element={<Room />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
                 </Routes>
             </AnimatePresence>
         </BrowserRouter>
