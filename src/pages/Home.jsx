@@ -82,7 +82,7 @@ export default function Home() {
             </div>
 
             <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                initial={{ opacity: 1, y: 0, scale: 1 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.5, type: "spring" }}
                 className="glass-panel w-full max-w-md p-8 relative z-10"

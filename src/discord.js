@@ -28,7 +28,13 @@ try {
 export { discordSdk };
 
 export async function setupDiscordSdk() {
-    await discordSdk.ready();
+    // Wait for the SDK to be ready, but timeout after 5 seconds to prevent hanging
+    const readyPromise = discordSdk.ready();
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Discord SDK ready() timed out")), 5000)
+    );
+
+    await Promise.race([readyPromise, timeoutPromise]);
 
     // Authorize with Discord Client
     const { code } = await discordSdk.commands.authorize({
