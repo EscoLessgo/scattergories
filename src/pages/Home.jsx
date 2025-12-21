@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Play, Plus, Users, User } from 'lucide-react';
+import { LuPlay, LuPlus, LuUsers, LuUser } from 'react-icons/lu';
 import { socket } from '../socket';
 import { discordSdk } from '../discord';
 
@@ -106,7 +106,7 @@ export default function Home() {
                         className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--accent-1)] to-[var(--accent-blue)] p-1 cursor-pointer shadow-lg shadow-purple-500/20"
                     >
                         <div className="w-full h-full bg-[#1a0b2e] rounded-full flex items-center justify-center overflow-hidden relative">
-                            <User size={40} className="text-white/80" />
+                            <LuUser size={40} className="text-white/80" />
                             <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">CHANGE</div>
                         </div>
                     </motion.button>
@@ -124,7 +124,7 @@ export default function Home() {
 
                 <div className="flex flex-col gap-3">
                     <MenuButton
-                        icon={<Play fill="currentColor" />}
+                        icon={<LuPlay fill="currentColor" />}
                         text="PLAY NOW"
                         sub="Join a random room"
                         color="bg-gradient-to-r from-[#ff9e00] to-[#ff6a00]"
@@ -132,7 +132,7 @@ export default function Home() {
                         delay={0.1}
                     />
                     <MenuButton
-                        icon={<Plus />}
+                        icon={<LuPlus />}
                         text="CREATE ROOM"
                         sub="Host a game for friends"
                         color="bg-gradient-to-r from-[var(--accent-1)] to-[#7b2cbf]"
@@ -140,7 +140,7 @@ export default function Home() {
                         delay={0.2}
                     />
                     <MenuButton
-                        icon={<Users />}
+                        icon={<LuUsers />}
                         text="ROOMS"
                         sub="Browse public rooms"
                         color="bg-gradient-to-r from-[#4361ee] to-[#3a0ca3]"

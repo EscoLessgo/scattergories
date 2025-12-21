@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Settings, Share2, Clock, Users, Send, Check, X, Trophy } from 'lucide-react';
+import { LuSettings, LuShare2, LuClock, LuUsers, LuSend, LuCheck, LuX, LuTrophy } from 'react-icons/lu';
 
 import { socket } from '../socket';
 
@@ -107,11 +107,11 @@ export default function Room() {
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 text-[var(--accent-2)]">
-                        <Clock size={18} />
+                        <LuClock size={18} />
                         <span className="font-mono font-bold">{gameState === 'PLAYING' ? timeLeft : '--'}</span>
                     </div>
                     <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                        <Settings size={20} className="text-white/60" />
+                        <LuSettings size={20} className="text-white/60" />
                     </button>
                 </div>
             </header>
@@ -205,10 +205,10 @@ function VotingView({ roomData, players, categories, isHost, onNext }) {
                                         </div>
                                         <div className="flex gap-2">
                                             <button className="w-8 h-8 rounded-lg bg-green-500/20 text-green-500 flex items-center justify-center hover:bg-green-500/40 transition-colors">
-                                                <Check size={18} />
+                                                <LuCheck size={18} />
                                             </button>
                                             <button className="w-8 h-8 rounded-lg bg-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/40 transition-colors">
-                                                <X size={18} />
+                                                <LuX size={18} />
                                             </button>
                                         </div>
                                     </div>
