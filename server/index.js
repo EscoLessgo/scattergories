@@ -27,7 +27,36 @@ app.use((req, res, next) => {
 // Diagnostic/Health Check
 app.get('/health', (req, res) => res.send('OK'));
 
-app.use(express.static(distPath));
+// app.use(express.static(distPath)); // DISABLED: Manual serving for cache busting
+
+// Explicit Root Handler for debugging
+const serveIndex = (req, res) => {
+    const indexPath = path.join(distPath, 'index.html');
+    try {
+        let html = fs.readFileSync(indexPath, 'utf8');
+
+        // Dynamic Injection to prove freshness
+        const timestamp = new Date().toISOString();
+        const color = '#00ff00'; // GREEN for success
+
+        html = html.replace('background-color: #ff00ff', `background-color: ${color}`);
+        html = html.replace('Loading Letter Litter...', `Loading... (Server Time: ${timestamp})`);
+
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Content-Type', 'text/html');
+
+        console.log(`[SERVE-INDEX] serving modified index.html to ${req.ip}`);
+        res.send(html);
+    } catch (e) {
+        console.error('[SERVE-INDEX] Failed to read index.html', e);
+        res.status(500).send(`Server Error: ${e.message}`);
+    }
+};
+
+app.get('/', serveIndex);
+app.get('/index.html', serveIndex);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
