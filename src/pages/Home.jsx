@@ -4,10 +4,11 @@ import { motion } from 'framer-motion';
 import { socket } from '../socket';
 import { authenticateDiscord, discord } from '../discord';
 import { FaPlay, FaGamepad, FaUsers, FaGlobe } from 'react-icons/fa';
+import { safeStorage } from '../utils/storage';
 
 const Home = () => {
     const navigate = useNavigate();
-    const [nickname, setNickname] = useState(localStorage.getItem('nickname') || '');
+    const [nickname, setNickname] = useState(safeStorage.getItem('nickname') || '');
     const [roomCode, setRoomCode] = useState('');
     const [isConnecting, setIsConnecting] = useState(false);
 
@@ -31,7 +32,7 @@ const Home = () => {
                         // For now, we'll store in localStorage or just rely on Random Old Person fallback if we don't pass it.
                         // But we want to use the Discord Avatar if possible!
                         const avatarUrl = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
-                        localStorage.setItem('discord_avatar', avatarUrl);
+                        safeStorage.setItem('discord_avatar', avatarUrl);
                     }
                 } catch (e) {
                     console.error("Discord Auth Failed", e);
@@ -46,7 +47,7 @@ const Home = () => {
         if (!nickname.trim()) return alert("Please enter a nickname!");
 
         setIsConnecting(true);
-        localStorage.setItem('nickname', nickname);
+        safeStorage.setItem('nickname', nickname);
 
         socket.auth = { nickname };
         socket.connect();

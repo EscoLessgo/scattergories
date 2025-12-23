@@ -5,6 +5,7 @@ import { LuSettings, LuClock, LuUsers, LuCheck, LuX, LuRotateCcw, LuSend } from 
 import { FaCrown, FaStop } from 'react-icons/fa';
 import { socket } from '../socket';
 import { discord, authenticateDiscord } from '../discord';
+import { safeStorage } from '../utils/storage';
 
 // Hardcoded list of "Old People" avatars (Stock photo URLs) to fulfill the specific request
 const OLD_PEOPLE_AVATARS = [
@@ -73,7 +74,7 @@ export default function Room() {
 
     useEffect(() => {
         // If nickname was set in previous socket session, it might persist, but if navigating directly or refresh:
-        const storedNickname = location.state?.nickname || localStorage.getItem('nickname');
+        const storedNickname = location.state?.nickname || safeStorage.getItem('nickname');
 
         if (!storedNickname) {
             navigate('/');
@@ -82,7 +83,7 @@ export default function Room() {
 
         // We use the nickname to generate a specific "Old Person" avatar here, OR use Discord avatar
         // Ideally this would be set on the server or passed during join
-        const discordAvatar = localStorage.getItem('discord_avatar');
+        const discordAvatar = safeStorage.getItem('discord_avatar');
         const avatarUrl = discordAvatar || getRandomOldPerson(storedNickname + roomId);
 
         if (!socket.connected) {
