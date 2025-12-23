@@ -1,250 +1,146 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { LuPlay, LuPlus, LuUsers, LuUser, LuX } from 'react-icons/lu';
+import { motion } from 'framer-motion';
 import { socket } from '../socket';
-import { discordSdk, setupDiscordSdk } from '../discord';
+import { FaPlay, FaGamepad, FaUsers, FaGlobe } from 'react-icons/fa';
 
-export default function Home() {
+const Home = () => {
     const navigate = useNavigate();
-    const [name, setName] = useState(localStorage.getItem('stopots_name') || '');
-    const [avatar, setAvatar] = useState(parseInt(localStorage.getItem('stopots_avatar')) || 0);
-    const [isDiscord, setIsDiscord] = useState(false);
-    const [showRoomBrowser, setShowRoomBrowser] = useState(false);
-    const [roomList, setRoomList] = useState([]);
+    const [nickname, setNickname] = useState(localStorage.getItem('nickname') || '');
+    const [roomCode, setRoomCode] = useState('');
+    const [isConnecting, setIsConnecting] = useState(false);
 
     useEffect(() => {
-        async function init() {
-            if (location.search.includes('frame_id')) { // Basic check for Discord
-                try {
-                    setIsDiscord(true);
-                    const auth = await setupDiscordSdk();
-                    if (auth.user) {
-                        setName(auth.user.global_name || auth.user.username);
-                    }
-                } catch (e) {
-                    console.error("Discord SDK Error", e);
-                }
-            }
-
-            if (!socket.connected) socket.connect();
-
-            function onJoined({ roomId }) {
-                navigate(`/room/${roomId}`);
-            }
-            function onRoomsList(rooms) {
-                setRoomList(rooms);
-            }
-
-            socket.on('joined_room', onJoined);
-            socket.on('rooms_list', onRoomsList);
-
-            return () => {
-                socket.off('joined_room', onJoined);
-                socket.off('rooms_list', onRoomsList);
-            };
+        // Ensure socket is disconnected on home to avoid ghost sessions
+        if (socket.connected) {
+            socket.disconnect();
         }
-        init();
-    }, [navigate]);
+    }, []);
 
-    const saveProfile = () => {
-        if (!name.trim()) return false;
-        localStorage.setItem('stopots_name', name);
-        localStorage.setItem('stopots_avatar', avatar);
-        return true;
-    };
+    const handleJoin = (e) => {
+        e.preventDefault();
+        if (!nickname.trim()) return alert("Please enter a nickname!");
 
-    const handlePlay = () => {
-        if (!saveProfile()) return alert('Please enter a name!');
-        socket.emit('join_room', { roomId: null, user: { name, avatar } });
-    };
+        setIsConnecting(true);
+        localStorage.setItem('nickname', nickname);
 
-    const handleCreate = () => {
-        if (!saveProfile()) return alert('Please enter a name!');
-        const newRoomId = Math.random().toString(36).substring(2, 7);
-        socket.emit('join_room', { roomId: newRoomId, user: { name, avatar } });
+        socket.auth = { nickname };
+        socket.connect();
+
+        // If room code provided, join that. Else join random/new.
+        // We'll navigate to the room page, and let the Room component handle the actual socket 'join_room' event 
+        // passing the nickname via state or just having the socket connected.
+        // Actually, best practice: Connect here, wait for connect, then nav.
+
+        socket.once('connect', () => {
+            // We can navigate immediately, Room.jsx will handle the 'join_room' emit using the socket
+            // Pass nickname in navigation state
+            const target = roomCode ? `/room/${roomCode}` : `/room/${Math.random().toString(36).substring(2, 7)}`;
+            navigate(target, { state: { nickname } });
+        });
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4">
-            {/* Background Animated Elements */}
-            <div className="absolute inset-0 pointer-events-none">
-                {[...Array(20)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        className="absolute text-white/5 font-bold text-6xl"
-                        initial={{
-                            x: Math.random() * window.innerWidth,
-                            y: Math.random() * window.innerHeight,
-                            rotate: Math.random() * 360
-                        }}
-                        animate={{
-                            y: [null, Math.random() * -100],
-                            rotate: [null, Math.random() * 360 + 180]
-                        }}
-                        transition={{
-                            duration: 20 + Math.random() * 20,
-                            repeat: Infinity,
-                            ease: "linear"
-                        }}
-                    >
-                        {String.fromCharCode(65 + Math.floor(Math.random() * 26))}
-                    </motion.div>
-                ))}
+        <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4">
+            {/* Background Elements */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600 rounded-full blur-[120px] opacity-20 animate-float" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600 rounded-full blur-[120px] opacity-20 animate-float" style={{ animationDelay: '-2s' }} />
             </div>
 
-            <motion.div
-                initial={{ opacity: 1, y: 0, scale: 1 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.5, type: "spring" }}
-                className="glass-panel w-full max-w-md p-8 relative z-10"
-            >
-                <div className="text-center mb-8">
-                    <motion.h1
-                        className="text-5xl font-black mb-2 tracking-tight"
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.2, type: "spring" }}
-                    >
-                        <span className="text-white">LETTER</span>
-                        <span className="text-[#00d2ff]">LITTER</span>
-                    </motion.h1>
-                    <p className="text-white/60 text-sm font-medium tracking-widest uppercase">The Categories Game</p>
-                </div>
+            <div className="z-10 w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
-                <div className="flex flex-col items-center gap-6 mb-8">
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setAvatar((prev) => (prev + 1) % 5)}
-                        className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--accent-1)] to-[var(--accent-blue)] p-1 cursor-pointer shadow-lg shadow-purple-500/20"
-                    >
-                        <div className="w-full h-full bg-[#1a0b2e] rounded-full flex items-center justify-center overflow-hidden relative">
-                            <LuUser size={40} className="text-white/80" />
-                            <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">CHANGE</div>
+                {/* Text Content */}
+                <motion.div
+                    initial={{ opacity: 0, x: -50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.8 }}
+                    className="text-left space-y-6"
+                >
+                    <h1 className="text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
+                        LETTER<br />LEGENDS
+                    </h1>
+                    <p className="text-xl text-gray-300 font-light max-w-md leading-relaxed">
+                        The ultimate fast-paced category word game. Race against time, outsmart your friends, and dominate the leaderboard.
+                    </p>
+
+                    <div className="flex gap-6 text-sm font-semibold text-gray-400">
+                        <div className="flex items-center gap-2">
+                            <FaGlobe className="text-indigo-400" /> Browser Based
                         </div>
-                    </motion.button>
-
-                    <div className="w-full relative">
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Enter your nickname..."
-                            className="w-full bg-[#00000030] border border-white/10 rounded-xl px-4 py-4 text-center text-white font-bold text-lg focus:border-[var(--accent-blue)] focus:bg-[#00000050] transition-all outline-none placeholder:text-white/20"
-                        />
+                        <div className="flex items-center gap-2">
+                            <FaUsers className="text-pink-400" /> Multiplayer
+                        </div>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="flex flex-col gap-3">
-                    <MenuButton
-                        icon={<LuPlay fill="currentColor" />}
-                        text="PLAY NOW"
-                        sub="Join a random room"
-                        color="bg-gradient-to-r from-[#ff9e00] to-[#ff6a00]"
-                        onClick={handlePlay}
-                        delay={0.1}
-                    />
-                    <MenuButton
-                        icon={<LuPlus />}
-                        text="CREATE ROOM"
-                        sub="Host a game for friends"
-                        color="bg-gradient-to-r from-[var(--accent-1)] to-[#7b2cbf]"
-                        onClick={handleCreate}
-                        delay={0.2}
-                    />
-                    <MenuButton
-                        icon={<LuUsers />}
-                        text="ROOMS"
-                        sub="Browse public rooms"
-                        color="bg-gradient-to-r from-[#4361ee] to-[#3a0ca3]"
-                        onClick={() => {
-                            setShowRoomBrowser(true);
-                            socket.emit('get_rooms');
-                        }}
-                        delay={0.3}
-                    />
-                </div>
+                {/* Login/Play Card */}
+                <motion.div
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                >
+                    <div className="glass-panel p-8 md:p-10 w-full max-w-md mx-auto relative">
+                        {/* Decorative glow */}
+                        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-pink-500 rounded-2xl blur opacity-20 -z-10"></div>
 
-                <div className="mt-8 flex gap-4 text-xs text-white/30 justify-center">
-                    <a href="/terms" className="hover:text-white/60 transition-colors">Terms of Service</a>
-                    <span>•</span>
-                    <a href="/privacy" className="hover:text-white/60 transition-colors">Privacy Policy</a>
-                </div>
-            </motion.div>
+                        <h2 className="text-2xl font-bold mb-6 text-center">Enter the Game</h2>
 
-            {/* Room Browser Modal - Simplified */}
-            {showRoomBrowser && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-[#130f1e] border border-white/10 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-white">Public Rooms</h2>
+                        <form onSubmit={handleJoin} className="space-y-4">
+                            <div>
+                                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-bold">Nickname</label>
+                                <input
+                                    type="text"
+                                    value={nickname}
+                                    onChange={(e) => setNickname(e.target.value)}
+                                    placeholder="e.g. WordMaster99"
+                                    className="glass-input"
+                                    maxLength={12}
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2 font-bold">Room Code (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={roomCode}
+                                    onChange={(e) => setRoomCode(e.target.value)}
+                                    placeholder="Leave empty to create new"
+                                    className="glass-input opacity-75"
+                                />
+                            </div>
+
                             <button
-                                onClick={() => setShowRoomBrowser(false)}
-                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-colors"
+                                type="submit"
+                                disabled={isConnecting}
+                                className="glass-button w-full flex items-center justify-center gap-3 mt-6 text-lg"
                             >
-                                CLOSE
+                                {isConnecting ? (
+                                    <span className="animate-pulse">Connecting...</span>
+                                ) : (
+                                    <>
+                                        <FaPlay /> Play Now
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 pt-6 border-t border-gray-700/50 text-center">
+                            <button className="text-sm text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-2 mx-auto">
+                                <FaGamepad /> How to Play
                             </button>
                         </div>
-
-                        <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                            {roomList.length === 0 ? (
-                                <div className="text-center py-12 text-white/30 italic">
-                                    No active rooms found. Create one!
-                                </div>
-                            ) : (
-                                roomList.map(room => (
-                                    <div key={room.id} className="bg-white/5 p-4 rounded-xl flex items-center justify-between border border-white/5 hover:border-[var(--accent-blue)] transition-colors">
-                                        <div>
-                                            <div className="font-bold text-lg">{room.host}'s Room</div>
-                                            <div className="text-xs text-white/40">ID: {room.id}</div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-sm font-mono text-white/60">
-                                                {room.players}/{room.maxPlayers}
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    if (!saveProfile()) return alert('Please enter a name!');
-                                                    socket.emit('join_room', { roomId: room.id, user: { name, avatar } });
-                                                }}
-                                                className="px-4 py-2 bg-[var(--accent-blue)] text-[#130f1e] font-bold rounded-lg hover:brightness-110 transition-all"
-                                            >
-                                                JOIN
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
                     </div>
-                </div>
-            )}
+                </motion.div>
+            </div>
+
+            {/* Footer */}
+            <div className="absolute bottom-4 left-0 w-full text-center text-xs text-gray-600">
+                &copy; 2024 Velarix Entertainment. All rights reserved.
+            </div>
         </div>
     );
-}
+};
 
-function MenuButton({ icon, text, sub, color, onClick, delay }) {
-    return (
-        <motion.button
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 + delay }}
-            whileHover={{ scale: 1.02, x: 5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onClick}
-            className={`w-full p-1 rounded-xl group relative overflow-hidden`}
-        >
-            <div className={`absolute inset-0 opacity-80 group-hover:opacity-100 transition-opacity ${color}`}></div>
-            <div className="relative bg-[#130f1e] m-[1px] rounded-[11px] p-3 flex items-center gap-4 group-hover:bg-[#130f1e]/90 transition-colors">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white shadow-inner ${color}`}>
-                    {icon}
-                </div>
-                <div className="text-left">
-                    <div className="text-white font-bold leading-tight">{text}</div>
-                    <div className="text-white/40 text-xs font-medium">{sub}</div>
-                </div>
-            </div>
-        </motion.button>
-    );
-}
+export default Home;

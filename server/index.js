@@ -74,27 +74,10 @@ const generateRoomId = () => Math.random().toString(36).substring(2, 7);
 
 app.use(express.json());
 
-app.post('/api/token', async (req, res) => {
-    try {
-        const response = await fetch(`https://discord.com/api/oauth2/token`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                client_id: process.env.VITE_DISCORD_CLIENT_ID,
-                client_secret: process.env.DISCORD_CLIENT_SECRET,
-                grant_type: 'authorization_code',
-                code: req.body.code,
-            }),
-        });
-
-        const { access_token } = await response.json();
-        res.send({ access_token });
-    } catch (error) {
-        console.error('Token invalid', error);
-        res.status(500).send({ error: 'Token invalid' });
-    }
+// Discord Auth removed for standalone web app
+app.post('/api/validate-session', (req, res) => {
+    // Simple session validation mock if needed
+    res.send({ valid: true });
 });
 
 // Catch-all handler for any request that doesn't match the above
@@ -200,12 +183,13 @@ io.on('connection', (socket) => {
             // Update existing player
             room.players[existingPlayerIndex].name = user.name || room.players[existingPlayerIndex].name;
             room.players[existingPlayerIndex].avatar = user.avatar || room.players[existingPlayerIndex].avatar;
+            socket.join(targetRoomId); // Ensure socket is joined
         } else {
             // Add new player
             const newPlayer = {
                 id: socket.id,
-                name: user.name || `Guest`,
-                avatar: user.avatar || 0,
+                name: user.name || `Guest ${Math.floor(Math.random() * 1000)}`,
+                avatar: user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + socket.id,
                 score: 0,
                 ready: false,
                 isHost: room.players.length === 0, // First player is host
