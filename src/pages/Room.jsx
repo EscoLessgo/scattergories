@@ -1,10 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { LuSettings, LuClock, LuUsers, LuCheck, LuX } from 'react-icons/lu';
-import { FaCrown, FaPaperPlane } from 'react-icons/fa';
-
+import { LuSettings, LuClock, LuUsers, LuCheck, LuX, LuRotateCcw, LuSend } from 'react-icons/lu';
+import { FaCrown, FaStop } from 'react-icons/fa';
 import { socket } from '../socket';
+import { discord, authenticateDiscord } from '../discord';
+
+// Hardcoded list of "Old People" avatars (Stock photo URLs) to fulfill the specific request
+const OLD_PEOPLE_AVATARS = [
+    "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/1139743/pexels-photo-1139743.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/3831641/pexels-photo-3831641.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/3785104/pexels-photo-3785104.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/3777931/pexels-photo-3777931.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/2050999/pexels-photo-2050999.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/3768163/pexels-photo-3768163.jpeg?auto=compress&cs=tinysrgb&w=150",
+    "https://images.pexels.com/photos/3779770/pexels-photo-3779770.jpeg?auto=compress&cs=tinysrgb&w=150"
+];
+
+const getRandomOldPerson = (seed) => {
+    // Deterministic random based on seed string
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % OLD_PEOPLE_AVATARS.length;
+    return OLD_PEOPLE_AVATARS[index];
+};
 
 export default function Room() {
     const { roomId } = useParams();
@@ -16,6 +38,26 @@ export default function Room() {
     const [letter, setLetter] = useState('?');
     const [timeLeft, setTimeLeft] = useState(60);
     const [answers, setAnswers] = useState({});
+
+    // Discord State
+    const [isDiscordEnvironment, setIsDiscordEnvironment] = useState(false);
+
+    useEffect(() => {
+        // Discord SDK Init
+        const initDiscord = async () => {
+            if (discord) {
+                try {
+                    await discord.ready();
+                    setIsDiscordEnvironment(true);
+                    // Could auto-auth here if needed
+                    console.log("Discord SDK Ready");
+                } catch (e) {
+                    console.error("Discord SDK Init Fail", e);
+                }
+            }
+        };
+        initDiscord();
+    }, []);
 
     useEffect(() => {
         let timer;
@@ -30,20 +72,36 @@ export default function Room() {
     }, [gameState, timeLeft]);
 
     useEffect(() => {
-        const nickname = location.state?.nickname || localStorage.getItem('nickname');
+        // If nickname was set in previous socket session, it might persist, but if navigating directly or refresh:
+        const storedNickname = location.state?.nickname || localStorage.getItem('nickname');
 
-        if (!nickname) {
+        if (!storedNickname) {
             navigate('/');
             return;
         }
 
+        // We use the nickname to generate a specific "Old Person" avatar here, OR use Discord avatar
+        // Ideally this would be set on the server or passed during join
+        const discordAvatar = localStorage.getItem('discord_avatar');
+        const avatarUrl = discordAvatar || getRandomOldPerson(storedNickname + roomId);
+
         if (!socket.connected) {
-            socket.auth = { nickname };
+            socket.auth = { nickname: storedNickname };
+            socket.on('connect_error', (err) => {
+                console.error("Socket Connect Error", err);
+                navigate('/');
+            });
             socket.connect();
         }
 
-        // Always attempt join (idempotent on server usually, or handles reconnects)
-        socket.emit('join_room', { roomId, user: { name: nickname } });
+        // Update the join_room emit to include our new "old person" avatar
+        socket.emit('join_room', {
+            roomId,
+            user: {
+                name: storedNickname,
+                avatar: avatarUrl
+            }
+        });
 
         function onRoomUpdate(updatedRoom) {
             if (!updatedRoom) return;
@@ -52,7 +110,6 @@ export default function Room() {
             if (updatedRoom.currentLetter !== '?') {
                 setLetter(updatedRoom.currentLetter);
             }
-            // Sync mechanics
             if (updatedRoom.state === 'VOTING' && gameState === 'PLAYING') {
                 socket.emit('submit_answers', { roomId, answers });
             }
@@ -71,14 +128,13 @@ export default function Room() {
             socket.off('room_update', onRoomUpdate);
             socket.off('game_started', onGameStarted);
         };
-    }, [roomId, navigate, location.state, answers, gameState]); // Added gameState/answers to dependency for submit trigger
+    }, [roomId, navigate, location.state, answers, gameState]);
 
     const startGame = () => {
         socket.emit('start_game', { roomId });
     };
 
     const handleStop = (finalAnswers) => {
-        // Send current answers immediately just in case
         const currentAnswers = finalAnswers || answers;
         socket.emit('stop_round', { roomId, answers: currentAnswers });
     };
@@ -89,85 +145,67 @@ export default function Room() {
     const isHost = roomData?.hostId === socket.id;
 
     if (!roomData) return (
-        <div className="h-screen flex flex-col items-center justify-center text-white font-mono animate-pulse bg-[var(--bg-primary)]">
-            <div className="w-16 h-16 border-4 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin mb-4"></div>
-            Connecting to Room...
+        <div className="h-screen flex items-center justify-center bg-[#1a1a1a] text-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400"></div>
         </div>
     );
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden bg-[var(--bg-primary)] text-white relative">
-            {/* Background Ambience */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[var(--accent-primary)] rounded-full blur-[150px] opacity-10" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-[var(--accent-secondary)] rounded-full blur-[150px] opacity-10" />
-            </div>
-
-            {/* Header */}
-            <header className="h-20 border-b border-[var(--glass-border)] flex items-center justify-between px-6 z-10 bg-[var(--glass-bg)] backdrop-blur-md">
-                <div className="flex items-center gap-6">
-                    <h2
-                        onClick={() => navigate('/')}
-                        className="text-2xl font-black tracking-tighter cursor-pointer hover:opacity-80 transition-opacity bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500"
-                    >
-                        LETTER LEGENDS
-                    </h2>
-                    <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
-                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Room Code</span>
-                        <span className="font-mono font-bold text-[var(--accent-primary)] select-all">{roomId}</span>
-                    </div>
+        <div className="h-screen flex flex-col bg-[#1a1a1a] text-white font-['Outfit']">
+            {/* Header / Navbar */}
+            <header className="h-16 bg-[#252525] border-b border-[#333] flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold bg-yellow-400 text-black px-3 py-1 rounded-md tracking-tight uppercase">
+                        SCATTERGORIES
+                    </h1>
                 </div>
 
-                <div className="flex items-center gap-6">
+                {/* Center Timer (Visible during game) */}
+                <div className="absolute left-1/2 transform -translate-x-1/2">
                     {gameState === 'PLAYING' && (
-                        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-full">
-                            <LuClock className="text-red-400" />
-                            <span className="font-mono font-bold text-red-400 text-lg w-8 text-center">{timeLeft}</span>
+                        <div className={`text-2xl font-black tabular-nums ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}>
+                            {timeLeft}s
                         </div>
                     )}
+                </div>
 
-                    <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center border border-white/20 shadow-lg">
-                            <span className="font-bold text-sm">You</span>
-                        </div>
+                <div className="flex items-center gap-4">
+                    <div className="hidden md:flex flex-col items-end">
+                        <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Room Code</span>
+                        <span className="text-sm font-mono text-gray-300 bg-[#333] px-2 rounded cursor-pointer select-all">{roomId}</span>
                     </div>
                 </div>
             </header>
 
-            {/* Main Layout */}
-            <div className="flex-1 flex overflow-hidden z-10 relative">
+            {/* Main Content Area */}
+            <div className="flex-1 flex overflow-hidden">
 
-                {/* Sidebar - Players */}
-                <div className="w-80 border-r border-[var(--glass-border)] bg-[rgba(10,10,12,0.5)] backdrop-blur-sm flex flex-col hidden lg:flex">
-                    <div className="p-6 border-b border-[var(--glass-border)]">
-                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                {/* Left Sidebar (Players) - Always visible on Desktop */}
+                <aside className="w-64 bg-[#202020] border-r border-[#333] hidden md:flex flex-col z-10 transition-all duration-300">
+                    <div className="p-4 border-b border-[#333]">
+                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                             <LuUsers /> Players ({players.length})
-                        </h3>
+                        </h2>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
                         {players.map(p => (
-                            <motion.div
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                key={p.id}
-                                className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
-                            >
-                                <img src={p.avatar} alt="avatar" className="w-10 h-10 rounded-full bg-gray-800" />
+                            <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-[#2a2a2a] hover:bg-[#333] transition-colors border border-transparent hover:border-gray-700">
+                                <img src={p.avatar || getRandomOldPerson(p.name)} alt="avatar" className="w-10 h-10 rounded-full object-cover old-person-avatar shadow-sm" />
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-bold truncate flex items-center gap-2">
+                                    <div className="text-sm font-bold truncate flex items-center gap-2 text-gray-200">
                                         {p.name}
-                                        {p.isHost && <FaCrown className="text-yellow-400 text-xs" />}
+                                        {p.isHost && <FaCrown className="text-yellow-500 text-[10px]" />}
                                     </div>
-                                    <div className="text-xs text-gray-400 font-mono">{p.score} pts</div>
+                                    <div className="text-xs text-gray-500 font-mono">{p.score} pts</div>
                                 </div>
-                                {p.id === socket.id && <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)] shadow-[0_0_10px_var(--accent-primary)]"></div>}
-                            </motion.div>
+                                {p.id === socket.id && <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>}
+                            </div>
                         ))}
                     </div>
-                </div>
+                </aside>
 
-                {/* Game Area */}
-                <div className="flex-1 overflow-hidden relative flex flex-col">
+                {/* Center Stage */}
+                <main className="flex-1 overflow-hidden relative bg-[#1a1a1a] flex flex-col">
                     <AnimatePresence mode="wait">
                         {gameState === 'LOBBY' && (
                             <LobbyView key="lobby" onStart={startGame} isHost={isHost} players={players} />
@@ -192,97 +230,89 @@ export default function Room() {
                                 players={players}
                                 categories={categories}
                                 isHost={isHost}
-                                onNext={() => startGame()} // Restart/Next Round
+                                onNext={() => startGame()}
                             />
                         )}
                     </AnimatePresence>
-                </div>
+                </main>
             </div>
         </div>
     );
 }
 
-// --- Sub-Components ---
+// --- Sub Components ---
 
 function LobbyView({ onStart, isHost, players }) {
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="h-full flex flex-col items-center justify-center p-8 text-center"
         >
-            <div className="glass-panel p-12 max-w-2xl w-full text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
-
-                <h2 className="text-4xl font-black mb-4">LOBBY</h2>
-                <div className="w-24 h-1 bg-white/10 mx-auto rounded-full mb-8"></div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-                    {players.map((p) => (
-                        <div key={p.id} className="flex flex-col items-center gap-2">
-                            <div className="w-14 h-14 rounded-full border-2 border-[var(--glass-border)] overflow-hidden">
-                                <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
-                            </div>
-                            <span className="text-xs font-bold truncate max-w-full">{p.name}</span>
-                        </div>
-                    ))}
-                    {Array.from({ length: Math.max(0, 8 - players.length) }).map((_, i) => (
-                        <div key={`empty-${i}`} className="flex flex-col items-center gap-2 opacity-30">
-                            <div className="w-14 h-14 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
-                                <LuUsers />
-                            </div>
-                            <span className="text-xs">Waiting...</span>
-                        </div>
-                    ))}
-                </div>
-
-                {isHost ? (
-                    <button
-                        onClick={onStart}
-                        className="glass-button w-full text-xl flex items-center justify-center gap-3 group"
-                    >
-                        START GAME <FaPaperPlane className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                ) : (
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-400 animate-pulse">
-                        Waiting for host to start the game...
-                    </div>
-                )}
+            <div className="mb-12">
+                <h2 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Waiting for players...</h2>
+                <p className="text-gray-400 max-w-md mx-auto">
+                    Share the room code or invite friends to start the match.
+                </p>
             </div>
+
+            <div className="flex flex-wrap justify-center gap-8 max-w-5xl mb-16">
+                {players.map((p) => (
+                    <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        key={p.id}
+                        className="flex flex-col items-center gap-3 w-28"
+                    >
+                        <div className="w-24 h-24 rounded-full border-4 border-[#333] overflow-hidden shadow-2xl bg-[#252525] relative group">
+                            <img src={p.avatar || getRandomOldPerson(p.name)} alt={p.name} className="w-full h-full object-cover old-person-avatar" />
+                            {p.isHost && <div className="absolute top-0 right-0 bg-yellow-400 text-black p-1 rounded-full text-xs box-content border-2 border-[#252525]"><FaCrown /></div>}
+                        </div>
+                        <span className="text-sm font-bold text-gray-300 truncate w-full px-2 py-1 bg-[#252525] rounded-md">{p.name}</span>
+                    </motion.div>
+                ))}
+            </div>
+
+            {isHost ? (
+                <button
+                    onClick={onStart}
+                    className="liquid-btn group"
+                >
+                    <span>START GAME</span>
+                    <LuSend className="ml-3 group-hover:translate-x-1 transition-transform inline mb-1" />
+                </button>
+            ) : (
+                <div className="flex items-center gap-3 px-8 py-4 bg-[#252525] rounded-full text-gray-400 border border-[#333]">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                    Waiting for host...
+                </div>
+            )}
         </motion.div>
     );
 }
 
 function SpinningView({ letter }) {
     return (
-        <motion.div
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xl"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-        >
-            <div className="text-center relative">
-                <motion.div
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-2xl font-bold uppercase tracking-[0.5em] text-gray-400 mb-8"
-                >
-                    The Letter Is
-                </motion.div>
-                <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-[80px] opacity-50"></div>
-                    <motion.h1
-                        key={letter}
-                        initial={{ y: 50, opacity: 0, rotateX: 90 }}
-                        animate={{ y: 0, opacity: 1, rotateX: 0 }}
-                        className="text-[15rem] leading-none font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 drop-shadow-2xl relative z-10"
-                    >
-                        {letter}
-                    </motion.h1>
-                </div>
-            </div>
-        </motion.div>
+        <div className="h-full flex flex-col items-center justify-center bg-[#1a1a1a]">
+            <motion.div
+                animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 360, 720]
+                }}
+                transition={{ duration: 2, ease: "easeInOut" }}
+                className="text-gray-500 text-2xl font-bold uppercase tracking-widest mb-8"
+            >
+                Rolling...
+            </motion.div>
+            <motion.h1
+                key={letter}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-[12rem] font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 to-yellow-600 drop-shadow-2xl"
+            >
+                {letter}
+            </motion.h1>
+        </div>
     );
 }
 
@@ -292,121 +322,96 @@ function PlayingView({ letter, categories, onStop, answers, setAnswers }) {
     };
 
     return (
-        <motion.div
-            className="flex-1 flex flex-col p-4 md:p-8 max-w-7xl mx-auto w-full h-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-        >
-            <div className="flex items-center justify-between mb-6 shrink-0">
-                <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] flex items-center justify-center text-5xl font-black shadow-2xl border border-white/20">
-                        {letter}
-                    </div>
-                    <div>
-                        <div className="text-[var(--accent-primary)] font-bold text-sm uppercase tracking-widest mb-1">Round Active</div>
-                        <h2 className="text-3xl font-bold">Fill in the blanks!</h2>
-                    </div>
+        <div className="h-full flex flex-col p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4 bg-[#252525] px-6 py-3 rounded-2xl border border-[#333]">
+                    <span className="text-gray-400 font-bold uppercase text-sm">Letter</span>
+                    <span className="text-4xl font-black text-yellow-400 border-l border-[#444] pl-4">{letter}</span>
                 </div>
+
                 <button
                     onClick={() => onStop()}
-                    className="px-10 py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl shadow-[0_4px_20px_rgba(220,38,38,0.4)] transition-all hover:scale-105 active:scale-95"
+                    className="liquid-btn"
+                    style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                 >
-                    STOP!
+                    <span className="text-red-500">STOP!</span>
+                    <FaStop className="ml-3 text-red-500 inline mb-1" />
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pb-32 pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto flex-1 pb-10 pr-2">
                 {categories.map((cat, i) => (
                     <motion.div
                         key={cat}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="group"
+                        className="bg-[#252525] p-5 rounded-3xl border border-[#333] hover:border-gray-600 transition-colors flex flex-col h-32 justify-center shadow-lg group"
                     >
-                        <div className="glass-panel p-5 hover:bg-white/5 transition-colors duration-300 border-l-4 border-l-transparent hover:border-l-[var(--accent-primary)]">
-                            <label className="text-xs font-bold text-gray-400 uppercase block mb-3 pl-1">{cat}</label>
-                            <input
-                                type="text"
-                                value={answers[cat] || ''}
-                                onChange={(e) => handleChange(cat, e.target.value)}
-                                className="w-full bg-black/20 text-white rounded-lg px-4 py-3 text-lg font-bold border border-transparent focus:border-[var(--accent-primary)] focus:bg-black/40 focus:outline-none transition-all placeholder:text-gray-700"
-                                placeholder={`...starts with ${letter}`}
-                                autoComplete="off"
-                            />
-                        </div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 group-hover:text-yellow-400 transition-colors">{cat}</label>
+                        <input
+                            type="text"
+                            value={answers[cat] || ''}
+                            onChange={(e) => handleChange(cat, e.target.value)}
+                            className="bg-transparent text-2xl font-bold text-white placeholder-gray-700 outline-none w-full"
+                            placeholder="..."
+                            autoComplete="off"
+                        />
                     </motion.div>
                 ))}
             </div>
-        </motion.div>
+        </div>
     );
 }
 
 function VotingView({ roomData, players, categories, isHost, onNext }) {
     const roundData = roomData?.roundData || {};
-    // Local state for votes could go here, but for now we visualize
 
     return (
-        <motion.div
-            className="flex-1 flex flex-col p-4 md:p-8 overflow-hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-        >
-            <div className="flex items-center justify-between mb-6 shrink-0">
+        <div className="h-full flex flex-col p-4 md:p-8 max-w-6xl mx-auto w-full">
+            <header className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-3xl font-black">VALIDATION</h2>
-                    <p className="text-gray-400">Review answers. The host will proceed.</p>
+                    <h2 className="text-2xl font-bold">Review Answers</h2>
+                    <p className="text-gray-500 text-sm">Check everyone's answers.</p>
                 </div>
-                {isHost ? (
-                    <button
-                        onClick={onNext}
-                        className="glass-button"
-                    >
-                        NEXT ROUND &rarr;
+                {isHost && (
+                    <button onClick={onNext} className="liquid-btn">
+                        <span>Next Round</span> <LuRotateCcw className="ml-2 inline" />
                     </button>
-                ) : (
-                    <div className="text-sm font-bold text-[var(--accent-primary)] animate-pulse">
-                        Host is reviewing...
-                    </div>
                 )}
-            </div>
+            </header>
 
-            <div className="flex-1 overflow-y-auto space-y-8 pr-4 pb-20">
+            <div className="flex-1 overflow-y-auto space-y-8 pr-2">
                 {categories.map(cat => (
-                    <div key={cat} className="space-y-4">
-                        <div className="flex items-center gap-3 sticky top-0 bg-[var(--bg-primary)]/90 backdrop-blur z-10 py-2 border-b border-white/5">
-                            <span className="w-8 h-8 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center font-bold text-white">#</span>
-                            <h3 className="text-xl font-bold">{cat}</h3>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div key={cat} className="space-y-3">
+                        <h3 className="text-lg font-bold text-black bg-yellow-400 px-4 py-2 rounded-lg inline-block shadow-lg shadow-yellow-400/20">{cat}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {players.map(p => {
                                 const answer = roundData[p.id]?.[cat];
                                 const isEmpty = !answer || answer.trim() === '';
                                 return (
-                                    <div key={p.id} className={`p-4 rounded-xl border flex items-center justify-between group transition-all ${isEmpty ? 'bg-red-500/5 border-red-500/10 opacity-60' : 'bg-white/5 border-white/5 hover:border-white/10'}`}>
-                                        <div className="min-w-0 flex-1 mr-4">
-                                            <div className="text-xs text-gray-500 mb-1 flex items-center gap-2">
+                                    <div key={p.id} className={`p-4 rounded-xl border flex items-center justify-between ${isEmpty ? 'bg-red-900/10 border-red-900/20' : 'bg-[#252525] border-[#333]'}`}>
+                                        <div className="min-w-0">
+                                            <div className="text-[10px] text-gray-500 mb-1 font-bold uppercase flex items-center gap-1">
                                                 <img src={p.avatar} className="w-4 h-4 rounded-full" /> {p.name}
                                             </div>
-                                            <div className={`text-lg font-bold ${isEmpty ? 'text-red-400 italic' : 'text-white'}`}>
-                                                {isEmpty ? 'No Answer' : answer}
+                                            <div className={`font-bold ${isEmpty ? 'text-red-500 text-sm' : 'text-white'}`}>
+                                                {isEmpty ? '(No Answer)' : answer}
                                             </div>
                                         </div>
                                         {!isEmpty && (
-                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors">
-                                                    <LuX size={16} />
-                                                </button>
+                                            <div className="flex gap-2">
+                                                <button className="text-green-500 hover:text-green-400 p-2 hover:bg-green-500/10 rounded-full transition-colors"><LuCheck /></button>
+                                                <button className="text-red-500 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-full transition-colors"><LuX /></button>
                                             </div>
                                         )}
                                     </div>
-                                );
+                                )
                             })}
                         </div>
                     </div>
                 ))}
             </div>
-        </motion.div>
+        </div>
     );
 }

@@ -74,10 +74,46 @@ const generateRoomId = () => Math.random().toString(36).substring(2, 7);
 
 app.use(express.json());
 
+import 'dotenv/config';
+
 // Discord Auth removed for standalone web app
 app.post('/api/validate-session', (req, res) => {
     // Simple session validation mock if needed
     res.send({ valid: true });
+});
+
+app.post('/api/token', async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).send({ error: 'No code provided' });
+
+        const params = new URLSearchParams({
+            client_id: process.env.VITE_DISCORD_CLIENT_ID,
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: process.env.VITE_DISCORD_REDIRECT_URI || 'http://localhost:5173', // Must match one in Developer Portal exactly
+        });
+
+        const response = await fetch('https://discord.com/api/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            console.error('Discord Token Error:', data);
+            return res.status(response.status).send(data);
+        }
+
+        res.send({ access_token: data.access_token });
+    } catch (e) {
+        console.error('Token Exchange Failed:', e);
+        res.status(500).send({ error: 'Internal Server Error' });
+    }
 });
 
 // Catch-all handler for any request that doesn't match the above
