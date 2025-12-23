@@ -10,6 +10,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <title>Scattergories</title>
+  <script>
+    window.addEventListener('error', function (e) {
+      if (document.getElementById('nuclear-error')) return;
+      var d = document.createElement('div');
+      d.id = 'nuclear-error';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#500;color:#fff;z-index:999999;padding:20px;overflow:auto;font-family:monospace;white-space:pre-wrap';
+      d.textContent = 'CRITICAL CLIENT ERROR:\n' + e.message + '\n' + e.filename + ':' + e.lineno;
+      document.body.appendChild(d);
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      if (document.getElementById('nuclear-error')) return;
+      var d = document.createElement('div');
+      d.id = 'nuclear-error';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#500;color:#fff;z-index:999999;padding:20px;overflow:auto;font-family:monospace;white-space:pre-wrap';
+      d.textContent = 'UNHANDLED PROMISE REJECTION:\n' + (e.reason ? e.reason.stack : e.reason);
+      document.body.appendChild(d);
+    });
+  </script>
 </head>
 
 <body>
