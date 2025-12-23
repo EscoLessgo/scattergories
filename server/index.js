@@ -27,6 +27,32 @@ app.use((req, res, next) => {
 // Diagnostic/Health Check
 app.get('/health', (req, res) => res.send('OK'));
 
+// DEBUG: Endpoint to list files in dist (Helpful for 'File Not Found' debugging)
+app.get('/debug-dist', (req, res) => {
+    try {
+        const rootFiles = fs.readdirSync(distPath);
+        let assetsFiles = [];
+        try {
+            assetsFiles = fs.readdirSync(path.join(distPath, 'assets'));
+        } catch (e) { assetsFiles = [`No assets dir: ${e.message}`]; }
+
+        res.json({
+            distPath,
+            rootFiles,
+            assetsFiles
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, distPath });
+    }
+});
+
+// Avoid "text/html" MIME errors by NOT falling back to index.html for assets
+app.use('/assets', express.static(path.join(distPath, 'assets')));
+app.use('/assets', (req, res) => {
+    res.status(404).send('Asset not found (Static Middleware Missed)');
+});
+
+
 // Serve static files primarily
 app.use(express.static(distPath));
 
