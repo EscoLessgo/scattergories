@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "npm run build && node server/index.js",
     "dev": "vite",
     "build": "vite build"
   },
