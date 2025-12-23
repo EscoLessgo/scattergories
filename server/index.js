@@ -27,36 +27,9 @@ app.use((req, res, next) => {
 // Diagnostic/Health Check
 app.get('/health', (req, res) => res.send('OK'));
 
-// app.use(express.static(distPath)); // DISABLED: Manual serving for cache busting
+// Serve static files primarily
+app.use(express.static(distPath));
 
-// Explicit Root Handler for debugging
-const serveIndex = (req, res) => {
-    const indexPath = path.join(distPath, 'index.html');
-    try {
-        let html = fs.readFileSync(indexPath, 'utf8');
-
-        // Dynamic Injection to prove freshness
-        const timestamp = new Date().toISOString();
-        const color = '#00ff00'; // GREEN for success
-
-        html = html.replace('background-color: #ff00ff', `background-color: ${color}`);
-        html = html.replace('Loading Letter Litter...', `Loading... (Server Time: ${timestamp})`);
-
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.setHeader('Content-Type', 'text/html');
-
-        console.log(`[SERVE-INDEX] serving modified index.html to ${req.ip}`);
-        res.send(html);
-    } catch (e) {
-        console.error('[SERVE-INDEX] Failed to read index.html', e);
-        res.status(500).send(`Server Error: ${e.message}`);
-    }
-};
-
-app.get('/', serveIndex);
-app.get('/index.html', serveIndex);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -126,35 +99,14 @@ app.use((req, res, next) => {
 
 // Catch-all handler for any request that doesn't match the above
 // Using 'use' to match POST/GET/etc ensuring we never fallback to default 404
-app.use('*', (req, res) => {
+// Catch-all handler for any request that doesn't match the above
+app.get('*', (req, res) => {
     const indexPath = path.join(distPath, 'index.html');
-
-    // Attempt to serve file
     res.sendFile(indexPath, (err) => {
         if (err) {
             console.error(`[ERROR] Sendfile failed for ${indexPath}`, err);
-
-            // Check if file even exists by listing directory
-            try {
-                const files = fs.readdirSync(distPath);
-                console.log('Contents of dist:', files);
-            } catch (e) {
-                console.log('Could not list dist:', e.message);
-            }
-
             if (!res.headersSent) {
-                // FALLBACK: Send hardcoded HTML so we never show a white screen
-                res.status(200).send(`
-                    <!DOCTYPE html>
-                    <html>
-                    <body style="background: #330000; color: white; padding: 20px; font-family: monospace;">
-                        <h1>SERVER FALLBACK</h1>
-                        <p>The server could not access the static assets.</p>
-                        <p>Error: ${err.message}</p>
-                        <p>Path: ${indexPath}</p>
-                    </body>
-                    </html>
-                `);
+                res.status(500).send("Server Error: Could not find client build.");
             }
         }
     });
