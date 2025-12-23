@@ -7,26 +7,9 @@ import { socket } from '../socket';
 import { discord, authenticateDiscord } from '../discord';
 import { safeStorage } from '../utils/storage';
 
-// Hardcoded list of "Old People" avatars (Stock photo URLs) to fulfill the specific request
-const OLD_PEOPLE_AVATARS = [
-    "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/1139743/pexels-photo-1139743.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/3831641/pexels-photo-3831641.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/3785104/pexels-photo-3785104.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/3777931/pexels-photo-3777931.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/2050999/pexels-photo-2050999.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/3768163/pexels-photo-3768163.jpeg?auto=compress&cs=tinysrgb&w=150",
-    "https://images.pexels.com/photos/3779770/pexels-photo-3779770.jpeg?auto=compress&cs=tinysrgb&w=150"
-];
-
-const getRandomOldPerson = (seed) => {
-    // Deterministic random based on seed string
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % OLD_PEOPLE_AVATARS.length;
-    return OLD_PEOPLE_AVATARS[index];
+const getRandomAvatar = (seed) => {
+    // Use DiceBear 'avataaars' or 'miniavs' for fun cartoon avatars
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
 };
 
 export default function Room() {
@@ -84,7 +67,7 @@ export default function Room() {
         // We use the nickname to generate a specific "Old Person" avatar here, OR use Discord avatar
         // Ideally this would be set on the server or passed during join
         const discordAvatar = safeStorage.getItem('discord_avatar');
-        const avatarUrl = discordAvatar || getRandomOldPerson(storedNickname + roomId);
+        const avatarUrl = discordAvatar || getRandomAvatar(storedNickname + roomId);
 
         if (!socket.connected) {
             socket.auth = { nickname: storedNickname };
@@ -191,7 +174,7 @@ export default function Room() {
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
                         {players.map(p => (
                             <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg bg-[#2a2a2a] hover:bg-[#333] transition-colors border border-transparent hover:border-gray-700">
-                                <img src={p.avatar || getRandomOldPerson(p.name)} alt="avatar" className="w-10 h-10 rounded-full object-cover old-person-avatar shadow-sm" />
+                                <img src={p.avatar || getRandomAvatar(p.name)} alt="avatar" className="w-10 h-10 rounded-full object-cover player-avatar shadow-sm" />
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-bold truncate flex items-center gap-2 text-gray-200">
                                         {p.name}
@@ -266,7 +249,7 @@ function LobbyView({ onStart, isHost, players }) {
                         className="flex flex-col items-center gap-3 w-28"
                     >
                         <div className="w-24 h-24 rounded-full border-4 border-[#333] overflow-hidden shadow-2xl bg-[#252525] relative group">
-                            <img src={p.avatar || getRandomOldPerson(p.name)} alt={p.name} className="w-full h-full object-cover old-person-avatar" />
+                            <img src={p.avatar || getRandomAvatar(p.name)} alt={p.name} className="w-full h-full object-cover player-avatar" />
                             {p.isHost && <div className="absolute top-0 right-0 bg-yellow-400 text-black p-1 rounded-full text-xs box-content border-2 border-[#252525]"><FaCrown /></div>}
                         </div>
                         <span className="text-sm font-bold text-gray-300 truncate w-full px-2 py-1 bg-[#252525] rounded-md">{p.name}</span>

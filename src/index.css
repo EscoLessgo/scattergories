@@ -5,11 +5,13 @@
 :root {
   --bg-primary: #0a0a0c;
   --bg-secondary: #121216;
-  --accent-primary: #6366f1; /* Indigo 500 */
-  --accent-secondary: #ec4899; /* Pink 500 */
+  --accent-primary: #6366f1;
+  /* Indigo 500 */
+  --accent-secondary: #ec4899;
+  /* Pink 500 */
   --text-primary: #ffffff;
   --text-secondary: #94a3b8;
-  
+
   --glass-bg: rgba(20, 20, 25, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shine: rgba(255, 255, 255, 0.03);
@@ -20,7 +22,7 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
-  background-image: 
+  background-image:
     radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 25%),
     radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.15) 0%, transparent 25%);
   min-height: 100vh;
@@ -57,25 +59,37 @@ body {
 }
 
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-20px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary); 
+  background: var(--bg-primary);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #334155; 
+  background: #334155;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569; 
+  background: #475569;
 }
+
 /* Liquid Button Style from CodePen Inspiration */
 .liquid-btn {
   position: relative;
@@ -107,7 +121,7 @@ body {
 .liquid-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
-              0 0 40px rgba(255, 255, 255, 0.1);
+    0 0 40px rgba(255, 255, 255, 0.1);
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.3);
 }
@@ -134,13 +148,16 @@ body {
 }
 
 /* Avatar Styling for "Old People" */
-.old-person-avatar {
+/* Avatar Styling */
+.player-avatar {
   border: 2px solid rgba(255, 255, 255, 0.2);
-  filter: sepia(0.2) contrast(1.1);
   transition: transform 0.3s;
+  background-color: #f0f0f0;
+  /* Light background for transparent SVGs */
 }
 
-.old-person-avatar:hover {
+.player-avatar:hover {
   transform: scale(1.1);
-  border-color: #fbbf24; /* Yellow-400 */
+  border-color: #6366f1;
+  /* Indigo-500 */
 }
