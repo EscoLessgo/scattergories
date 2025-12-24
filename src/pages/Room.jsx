@@ -215,6 +215,7 @@ export default function Room() {
                                 categories={categories}
                                 isHost={isHost}
                                 onNext={() => startGame()}
+                                roomId={roomId}
                             />
                         )}
                     </AnimatePresence>
@@ -348,21 +349,67 @@ function PlayingView({ letter, categories, onStop, answers, setAnswers }) {
     );
 }
 
-function VotingView({ roomData, players, categories, isHost, onNext }) {
+function VotingView({ roomData, players, categories, isHost, onNext, roomId }) {
     const roundData = roomData?.roundData || {};
+    const [votes, setVotes] = useState({});
+    const [hasSubmitted, setHasSubmitted] = useState(false);
+
+    // Initialize votes - default all answers to valid
+    useEffect(() => {
+        const initialVotes = {};
+        categories.forEach(cat => {
+            initialVotes[cat] = {};
+            players.forEach(p => {
+                const answer = roundData[p.id]?.[cat];
+                // Default to valid if there's an answer
+                initialVotes[cat][p.id] = !!(answer && answer.trim());
+            });
+        });
+        setVotes(initialVotes);
+    }, [categories, players, roundData]);
+
+    const toggleVote = (category, playerId) => {
+        setVotes(prev => ({
+            ...prev,
+            [category]: {
+                ...prev[category],
+                [playerId]: !prev[category]?.[playerId]
+            }
+        }));
+    };
+
+    const handleSubmitVotes = () => {
+        socket.emit('submit_votes', { roomId, votes });
+        setHasSubmitted(true);
+    };
+
+    const handleEndVoting = () => {
+        // Host can force-submit their votes and end voting
+        if (!hasSubmitted) {
+            socket.emit('submit_votes', { roomId, votes });
+        }
+        socket.emit('end_voting', { roomId });
+    };
 
     return (
         <div className="h-full flex flex-col p-4 md:p-8 max-w-6xl mx-auto w-full">
             <header className="flex items-center justify-between mb-8">
                 <div>
                     <h2 className="text-2xl font-bold">Review Answers</h2>
-                    <p className="text-gray-500 text-sm">Check everyone's answers.</p>
+                    <p className="text-gray-500 text-sm">Click ✓ for valid, ✗ for invalid. {hasSubmitted ? '✅ Votes submitted!' : 'Submit your votes below.'}</p>
                 </div>
-                {isHost && (
-                    <button onClick={onNext} className="liquid-btn">
-                        <span>Next Round</span> <LuRotateCcw className="ml-2 inline" />
-                    </button>
-                )}
+                <div className="flex gap-3">
+                    {!hasSubmitted && (
+                        <button onClick={handleSubmitVotes} className="liquid-btn">
+                            <span>Submit Votes</span> <LuCheck className="ml-2 inline" />
+                        </button>
+                    )}
+                    {isHost && (
+                        <button onClick={handleEndVoting} className="liquid-btn" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
+                            <span className="text-green-500">Finish Voting</span> <LuRotateCcw className="ml-2 inline text-green-500" />
+                        </button>
+                    )}
+                </div>
             </header>
 
             <div className="flex-1 overflow-y-auto space-y-8 pr-2">
@@ -373,20 +420,36 @@ function VotingView({ roomData, players, categories, isHost, onNext }) {
                             {players.map(p => {
                                 const answer = roundData[p.id]?.[cat];
                                 const isEmpty = !answer || answer.trim() === '';
+                                const isValid = votes[cat]?.[p.id] ?? true;
                                 return (
-                                    <div key={p.id} className={`p-4 rounded-xl border flex items-center justify-between ${isEmpty ? 'bg-red-900/10 border-red-900/20' : 'bg-[#252525] border-[#333]'}`}>
-                                        <div className="min-w-0">
+                                    <div key={p.id} className={`p-4 rounded-xl border flex items-center justify-between ${isEmpty ? 'bg-red-900/10 border-red-900/20' : isValid ? 'bg-[#252525] border-green-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
+                                        <div className="min-w-0 flex-1">
                                             <div className="text-[10px] text-gray-500 mb-1 font-bold uppercase flex items-center gap-1">
-                                                <img src={p.avatar} className="w-4 h-4 rounded-full" /> {p.name}
+                                                <img src={p.avatar} className="w-4 h-4 rounded-full" alt="" /> {p.name}
                                             </div>
                                             <div className={`font-bold ${isEmpty ? 'text-red-500 text-sm' : 'text-white'}`}>
                                                 {isEmpty ? '(No Answer)' : answer}
                                             </div>
                                         </div>
-                                        {!isEmpty && (
-                                            <div className="flex gap-2">
-                                                <button className="text-green-500 hover:text-green-400 p-2 hover:bg-green-500/10 rounded-full transition-colors"><LuCheck /></button>
-                                                <button className="text-red-500 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-full transition-colors"><LuX /></button>
+                                        {!isEmpty && !hasSubmitted && (
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => toggleVote(cat, p.id)}
+                                                    className={`p-2 rounded-full transition-all ${isValid ? 'bg-green-500 text-white' : 'text-green-500 hover:bg-green-500/10'}`}
+                                                >
+                                                    <LuCheck />
+                                                </button>
+                                                <button
+                                                    onClick={() => toggleVote(cat, p.id)}
+                                                    className={`p-2 rounded-full transition-all ${!isValid ? 'bg-red-500 text-white' : 'text-red-500 hover:bg-red-500/10'}`}
+                                                >
+                                                    <LuX />
+                                                </button>
+                                            </div>
+                                        )}
+                                        {!isEmpty && hasSubmitted && (
+                                            <div className={`text-2xl ${isValid ? 'text-green-500' : 'text-red-500'}`}>
+                                                {isValid ? '✓' : '✗'}
                                             </div>
                                         )}
                                     </div>
