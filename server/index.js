@@ -88,6 +88,73 @@ const rooms = new Map();
 // Helper to generate room ID
 const generateRoomId = () => Math.random().toString(36).substring(2, 7);
 
+// Calculate scores based on votes
+// votes structure: { playerId: { category: { answererPlayerId: boolean (valid or not) } } }
+const calculateScores = (room) => {
+    const roundScores = {};
+    const categories = room.categories || [];
+
+    // Initialize round scores
+    room.players.forEach(p => {
+        roundScores[p.id] = 0;
+    });
+
+    // For each category, check votes
+    categories.forEach(category => {
+        // Count votes per player's answer for this category
+        const answerVotes = {}; // { playerId: { valid: count, invalid: count } }
+
+        room.players.forEach(player => {
+            answerVotes[player.id] = { valid: 0, invalid: 0 };
+        });
+
+        // Tally votes
+        Object.entries(room.votes || {}).forEach(([voterId, voterVotes]) => {
+            const categoryVotes = voterVotes[category] || {};
+            Object.entries(categoryVotes).forEach(([answererPlayerId, isValid]) => {
+                if (answerVotes[answererPlayerId]) {
+                    if (isValid) {
+                        answerVotes[answererPlayerId].valid++;
+                    } else {
+                        answerVotes[answererPlayerId].invalid++;
+                    }
+                }
+            });
+        });
+
+        // Award points - majority vote wins
+        Object.entries(answerVotes).forEach(([playerId, votes]) => {
+            // If more valid votes than invalid, award points
+            if (votes.valid > votes.invalid) {
+                // Check if answer is unique
+                const playerAnswer = room.roundData[playerId]?.[category]?.toLowerCase().trim() || '';
+                if (!playerAnswer) return;
+
+                // Count how many players have the same answer
+                let sameAnswerCount = 0;
+                Object.entries(room.roundData || {}).forEach(([otherId, otherAnswers]) => {
+                    const otherAnswer = otherAnswers[category]?.toLowerCase().trim() || '';
+                    if (otherAnswer === playerAnswer) {
+                        sameAnswerCount++;
+                    }
+                });
+
+                // Unique answer = 10 points, shared answer = 5 points
+                const points = sameAnswerCount === 1 ? 10 : 5;
+                roundScores[playerId] += points;
+            }
+        });
+    });
+
+    // Apply round scores to players
+    room.players.forEach(player => {
+        player.score += roundScores[player.id] || 0;
+    });
+
+    room.lastRoundScores = roundScores;
+    console.log('[Scoring] Round scores:', roundScores);
+};
+
 app.use(express.json());
 
 import 'dotenv/config';
@@ -293,6 +360,67 @@ io.on('connection', (socket) => {
         room.roundData[socket.id] = answers;
 
         // Check if all players have submitted (optional, or just wait for voting phase)
+        io.to(roomId).emit('room_update', room);
+    });
+
+    // Handle vote submissions
+    socket.on('submit_votes', ({ roomId, votes }) => {
+        const room = rooms.get(roomId);
+        if (!room || room.state !== 'VOTING') return;
+
+        // Store votes
+        if (!room.votes) room.votes = {};
+        room.votes[socket.id] = votes;
+
+        // Check if all players have voted
+        const playersWhoAnswered = Object.keys(room.roundData || {});
+        const playersWhoVoted = Object.keys(room.votes);
+
+        console.log(`[Votes] ${playersWhoVoted.length}/${room.players.length} players voted`);
+
+        // If all players have voted, calculate scores
+        if (playersWhoVoted.length >= room.players.length) {
+            calculateScores(room);
+            room.state = 'RESULTS';
+            io.to(roomId).emit('round_results', {
+                scores: room.players.map(p => ({ id: p.id, name: p.name, score: p.score })),
+                roundScores: room.lastRoundScores
+            });
+            io.to(roomId).emit('room_update', room);
+        } else {
+            io.to(roomId).emit('room_update', room);
+        }
+    });
+
+    // Force end voting (host only)
+    socket.on('end_voting', ({ roomId }) => {
+        const room = rooms.get(roomId);
+        if (!room || room.state !== 'VOTING') return;
+
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player?.isHost) return;
+
+        calculateScores(room);
+        room.state = 'RESULTS';
+        io.to(roomId).emit('round_results', {
+            scores: room.players.map(p => ({ id: p.id, name: p.name, score: p.score })),
+            roundScores: room.lastRoundScores
+        });
+        io.to(roomId).emit('room_update', room);
+    });
+
+    // Return to lobby
+    socket.on('return_to_lobby', ({ roomId }) => {
+        const room = rooms.get(roomId);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player?.isHost) return;
+
+        room.state = 'LOBBY';
+        room.roundData = {};
+        room.votes = {};
+        room.currentLetter = '?';
         io.to(roomId).emit('room_update', room);
     });
 
