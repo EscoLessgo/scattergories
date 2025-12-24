@@ -60,29 +60,40 @@ const Home = () => {
         e.preventDefault();
         if (!nickname.trim()) return alert("Please enter a nickname!");
 
+        console.log('[Home] Play Now clicked, nickname:', nickname);
         setIsConnecting(true);
         safeStorage.setItem('nickname', nickname);
 
         socket.auth = { nickname };
-        socket.connect();
 
-        // If room code provided, join that. Else join random/new.
-        // We'll navigate to the room page, and let the Room component handle the actual socket 'join_room' event 
-        // passing the nickname via state or just having the socket connected.
-        // Actually, best practice: Connect here, wait for connect, then nav.
+        // Remove any existing listeners to prevent duplicates
+        socket.off('connect');
+        socket.off('connect_error');
+
+        // Set a timeout in case connection hangs
+        const timeout = setTimeout(() => {
+            console.error('[Home] Socket connection timeout');
+            socket.disconnect();
+            setIsConnecting(false);
+            alert('Connection timeout. Please try again.');
+        }, 10000);
 
         socket.once('connect', () => {
-            // We can navigate immediately, Room.jsx will handle the 'join_room' emit using the socket
-            // Pass nickname in navigation state
+            console.log('[Home] Socket connected, navigating...');
+            clearTimeout(timeout);
             const target = roomCode ? `/room/${roomCode}` : `/room/${Math.random().toString(36).substring(2, 7)}`;
             navigate(target, { state: { nickname } });
         });
 
-        socket.on('connect_error', (err) => {
-            console.error('Connection failed:', err);
+        socket.once('connect_error', (err) => {
+            console.error('[Home] Connection failed:', err);
+            clearTimeout(timeout);
             alert('Connection failed: ' + err.message);
             setIsConnecting(false);
         });
+
+        console.log('[Home] Attempting socket connection...');
+        socket.connect();
     };
 
     return (
