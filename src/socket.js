@@ -1,26 +1,52 @@
 import { io } from 'socket.io-client';
 
-// In production/Discord, connect to the same origin
-// In development, use the configured URL or localhost
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:3001');
+// Detect the correct socket URL
+// In Discord, we're proxied so we use the current origin
+// In development, use localhost
+const getSocketUrl = () => {
+    // Check if we're in a browser
+    if (typeof window === 'undefined') {
+        return 'http://127.0.0.1:3001';
+    }
 
-console.log('[Socket] Connecting to:', SOCKET_URL);
+    // Check for explicit env variable first
+    if (import.meta.env.VITE_SOCKET_URL) {
+        return import.meta.env.VITE_SOCKET_URL;
+    }
+
+    // In production/Discord, use the page origin
+    // This works because socket.io on the same server
+    return window.location.origin;
+};
+
+const SOCKET_URL = getSocketUrl();
+
+console.log('[Socket] URL:', SOCKET_URL);
+console.log('[Socket] Current origin:', typeof window !== 'undefined' ? window.location.origin : 'N/A');
 
 export const socket = io(SOCKET_URL, {
     autoConnect: false,
-    transports: ['websocket', 'polling'] // Prefer websocket but allow polling fallback
+    // Use both transports for better compatibility
+    transports: ['polling', 'websocket'],
+    // Increase timeout for slower connections
+    timeout: 20000,
+    // Force new connection each time
+    forceNew: true
 });
 
 // Debug listeners
 socket.on('connect', () => {
-    console.log('[Socket] Connected! ID:', socket.id);
+    console.log('[Socket] ✅ Connected! ID:', socket.id);
 });
 
 socket.on('connect_error', (err) => {
-    console.error('[Socket] Connection error:', err.message);
+    console.error('[Socket] ❌ Connection error:', err.message, err);
 });
 
 socket.on('disconnect', (reason) => {
     console.log('[Socket] Disconnected:', reason);
+});
+
+socket.io.on('error', (err) => {
+    console.error('[Socket] Transport error:', err);
 });
