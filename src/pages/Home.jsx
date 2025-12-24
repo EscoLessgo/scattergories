@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { socket } from '../socket';
-import { authenticateDiscord, discord } from '../discord';
+import { authenticateDiscord, discord, discordInitError } from '../discord';
 import { FaPlay, FaGamepad, FaUsers, FaGlobe } from 'react-icons/fa';
 import { safeStorage } from '../utils/storage';
 
@@ -11,6 +11,7 @@ const Home = () => {
     const [nickname, setNickname] = useState(safeStorage.getItem('nickname') || '');
     const [roomCode, setRoomCode] = useState('');
     const [isConnecting, setIsConnecting] = useState(false);
+    const [discordStatus, setDiscordStatus] = useState('checking...');
 
     useEffect(() => {
         // Ensure socket is disconnected on home to avoid ghost sessions
@@ -18,25 +19,38 @@ const Home = () => {
             socket.disconnect();
         }
 
+        // Check Discord status
+        if (discordInitError) {
+            setDiscordStatus('SDK Error: ' + discordInitError.message);
+            return;
+        }
+
+        if (!discord) {
+            setDiscordStatus('Not in Discord');
+            return;
+        }
+
+        setDiscordStatus('SDK loaded, authenticating...');
+
         // Attempt Discord Authentication
         const performDiscordAuth = async () => {
-            if (discord) {
-                try {
-                    const auth = await authenticateDiscord();
-                    if (auth && auth.user) {
-                        const user = auth.user;
-                        // Set nickname from Discord profile
-                        setNickname(user.global_name || user.username);
+            try {
+                const auth = await authenticateDiscord();
+                if (auth && auth.user) {
+                    const user = auth.user;
+                    setDiscordStatus('Logged in as: ' + (user.global_name || user.username));
+                    // Set nickname from Discord profile
+                    setNickname(user.global_name || user.username);
 
-                        // Store avatar for Room to use (Room.jsx expects it in socket or logic)
-                        // For now, we'll store in localStorage or just rely on Random Old Person fallback if we don't pass it.
-                        // But we want to use the Discord Avatar if possible!
-                        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
-                        safeStorage.setItem('discord_avatar', avatarUrl);
-                    }
-                } catch (e) {
-                    console.error("Discord Auth Failed", e);
+                    // Store avatar for Room to use
+                    const avatarUrl = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
+                    safeStorage.setItem('discord_avatar', avatarUrl);
+                } else {
+                    setDiscordStatus('Auth returned no user');
                 }
+            } catch (e) {
+                console.error("Discord Auth Failed", e);
+                setDiscordStatus('Auth failed: ' + e.message);
             }
         };
         performDiscordAuth();
@@ -102,6 +116,12 @@ const Home = () => {
                         <div className="flex items-center gap-2">
                             <FaUsers className="text-pink-400" /> Multiplayer
                         </div>
+                    </div>
+
+                    {/* Discord Status Indicator */}
+                    <div className="mt-4 px-3 py-2 rounded-lg bg-[#5865F2]/20 border border-[#5865F2]/30 text-sm">
+                        <span className="text-[#5865F2] font-bold">Discord: </span>
+                        <span className="text-gray-300">{discordStatus}</span>
                     </div>
                 </motion.div>
 
