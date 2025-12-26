@@ -118,6 +118,10 @@ export default function Room() {
         socket.emit('start_game', { roomId });
     };
 
+    const returnToLobby = () => {
+        socket.emit('return_to_lobby', { roomId });
+    };
+
     const handleStop = (finalAnswers) => {
         const currentAnswers = finalAnswers || answers;
         socket.emit('stop_round', { roomId, answers: currentAnswers });
@@ -216,6 +220,16 @@ export default function Room() {
                                 isHost={isHost}
                                 onNext={() => startGame()}
                                 roomId={roomId}
+                            />
+                        )}
+                        {gameState === 'RESULTS' && (
+                            <ResultsView
+                                key="results"
+                                roomData={roomData}
+                                players={players}
+                                isHost={isHost}
+                                onNextGame={startGame}
+                                onLobby={returnToLobby}
                             />
                         )}
                     </AnimatePresence>
@@ -458,6 +472,76 @@ function VotingView({ roomData, players, categories, isHost, onNext, roomId }) {
                         </div>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+function ResultsView({ roomData, players, isHost, onNextGame, onLobby }) {
+    const roundScores = roomData?.lastRoundScores || {};
+
+    // Sort players by total score
+    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+
+    return (
+        <div className="h-full flex flex-col items-center justify-center p-4 md:p-8 text-center max-w-5xl mx-auto w-full overflow-hidden">
+            <h2 className="text-4xl font-extrabold text-white mb-8 tracking-tight drop-shadow-lg">Round Complete!</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-12 flex-1 overflow-y-auto">
+                {/* Round Scores */}
+                <div className="bg-[#252525] p-6 rounded-3xl border border-[#333] shadow-xl flex flex-col">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 border-b border-[#333] pb-2">Round Breakdown</h3>
+                    <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar">
+                        {players.map(p => (
+                            <div key={p.id} className="flex justify-between items-center p-3 rounded-xl bg-[#2a2a2a] border border-transparent hover:border-[#444] transition-all">
+                                <div className="flex items-center gap-3">
+                                    <img src={p.avatar} className="w-8 h-8 rounded-full border border-[#444]" alt="" />
+                                    <span className="font-bold text-gray-200">{p.name}</span>
+                                </div>
+                                <span className={`font-mono font-bold ${roundScores[p.id] > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                                    +{roundScores[p.id] || 0}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Total Leaderboard */}
+                <div className="bg-[#252525] p-6 rounded-3xl border border-[#333] shadow-xl flex flex-col">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 border-b border-[#333] pb-2">Leaderboard</h3>
+                    <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar">
+                        {sortedPlayers.map((p, i) => (
+                            <div key={p.id} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${i === 0 ? 'bg-yellow-400/10 border-yellow-400/30' : 'bg-[#2a2a2a] border-transparent hover:border-[#444]'}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-yellow-400 text-black' : 'bg-[#333] text-gray-500'}`}>
+                                        {i + 1}
+                                    </div>
+                                    <img src={p.avatar} className="w-8 h-8 rounded-full border border-[#444]" alt="" />
+                                    <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-200'}`}>{p.name}</span>
+                                </div>
+                                <span className="font-mono font-bold text-white text-lg">{p.score}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <div className="shrink-0 pt-4">
+                {isHost ? (
+                    <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
+                        <button onClick={onLobby} className="px-6 py-3 rounded-xl font-bold text-gray-400 hover:text-white hover:bg-[#333] transition-all">
+                            Back to Lobby
+                        </button>
+                        <button onClick={onNextGame} className="liquid-btn group">
+                            <span>Next Round</span> <LuSend className="ml-3 group-hover:translate-x-1 transition-transform inline" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3 px-6 py-3 bg-[#252525] rounded-full text-gray-400 border border-[#333]">
+                        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                        Waiting for host...
+                    </div>
+                )}
             </div>
         </div>
     );
