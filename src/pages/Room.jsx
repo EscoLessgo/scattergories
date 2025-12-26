@@ -20,7 +20,7 @@ export default function Room() {
     const [roomData, setRoomData] = useState(null);
     const [gameState, setGameState] = useState('LOBBY');
     const [letter, setLetter] = useState('?');
-    const [timeLeft, setTimeLeft] = useState(60);
+    const [timeLeft, setTimeLeft] = useState(90);
     const [answers, setAnswers] = useState({});
 
     // Discord State
@@ -102,7 +102,7 @@ export default function Room() {
         function onGameStarted({ letter }) {
             setLetter(letter);
             setAnswers({}); // Reset
-            setTimeLeft(60);
+            setTimeLeft(90);
         }
 
         socket.on('room_update', onRoomUpdate);
